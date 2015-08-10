@@ -86,7 +86,7 @@ public class PayRecord{
     }
 
     public boolean merge(PayRecord record){
-        if(!record.getCurrency().equals(currency) || !record.getTitle().equals(title)){
+        if(!record.getCurrency().equals(currency)){
             return false;
         }
         due += record.getDue();

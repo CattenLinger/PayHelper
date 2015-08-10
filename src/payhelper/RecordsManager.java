@@ -14,28 +14,27 @@ import static java.lang.System.out;
 public class RecordsManager {
     private Map<String,PayRecord> pool;
     private Vector<PayRecord> defaulters;
-
-    private double totalExpenses;
-    private double totalDue;
-    private double totalArrears;
-    private double totalChanges;
+    private int[] cashPool;
+    private PayRecord sum;
     //账单记录列表
-    private Vector<PayRecord> recordlist;
+    private Vector<PayRecord> recordList;
 
     private Currency currentCurrency;
 
     public RecordsManager(Vector<PayRecord> list,Currency currency){
-        recordlist = list;
+        recordList = list;
         currentCurrency = currency;
-        //nameBook = new HashSet<String>();
-        //pool = new Vector<PayRecord>();
+
+        //初始化管理数据用的容器
         defaulters = new Vector<PayRecord>();
         pool = new HashMap<String, PayRecord>();
+        cashPool = new int[currentCurrency.getDenominations().length];
+        //整理数据
         copyToMap();
     }//*/
-
+    //把账单数据复制到Map中，相同名称的帐目会被合并。
     private void copyToMap(){
-        for(PayRecord record:recordlist){
+        for(PayRecord record: recordList){
             PayRecord temp = pool.put(record.getTitle(),record);
             if(temp != null){
                 pool.get(record.getTitle()).merge(temp);
@@ -45,12 +44,56 @@ public class RecordsManager {
     }
 
     private void refreshData(){
+        //清理旧的数据
         defaulters.clear();
+        for (int i = 0; i < cashPool.length; i++) {
+            cashPool[i] = 0;
+        }
+        sum = new PayRecord("SUM",0,0,currentCurrency);
+        //计算新的数据
         for (PayRecord record:pool.values()){
+            //负债人
             if(record.isInDebt()){
                 defaulters.add(record);
+                //TODO 汇总负债人以及计算负债人应该给出的纸币的组合
             }
+            //零钱池
+            int[] changes = record.getChanges();
+            for (int i = 0; i < cashPool.length; i++){
+                cashPool[i] += changes[i];
+            }
+            //SUM
+            sum.merge(record);
         }
+    }
+
+    //收款人返还的找零组合
+    public int[] getChanges(){
+        //TODO 使用 _distributing(int[] thePool,int amount) 代替之
+        int[] temp = sum.getChanges();
+        int amount = (int)(sum.getChange() * 100);
+        int[] result = new int[temp.length];
+        for (int i = 0; i < temp.length; i++) {
+            if(temp[i] == 0 || amount < (int)(currentCurrency.getDenominations()[i] * 100)){
+                continue;
+            }
+            result[i] = amount % (int)(currentCurrency.getDenominations()[i] * 100);
+            amount -= result[i] * (int)(currentCurrency.getDenominations()[i] * 100);
+        }
+        return result;
+    }
+
+    //从零钱池中分配零钱
+    private int[] _distributing(int[] thePool,int amount){
+        int theamount = amount;
+        int[] result = new int[thePool.length];
+        for (int i = 0; i < thePool.length; i++) {
+            if(thePool[i] == 0 || amount <(int)(currentCurrency.getDenominations()[i] * 100)){
+                continue;
+            }
+            //TODO 从零钱池中分配零钱的算法
+        }
+        return result;
     }
 
     public Currency getCurrentCurrency(){
@@ -59,7 +102,7 @@ public class RecordsManager {
 
     public void addRecord(String title,double Due,double Expenses){
         PayRecord record = new PayRecord(title,Due,Expenses,currentCurrency);
-        recordlist.add(record);
+        recordList.add(record);
         PayRecord temp = pool.put(record.getTitle(),record);
         if(temp != null){
             pool.get(record.getTitle()).merge(temp);
@@ -68,34 +111,34 @@ public class RecordsManager {
     }
 
     public Vector<PayRecord> getRecordList(){
-        return recordlist;
+        return recordList;
     }
 
     public void removeRecord(int RecordID){
-        PayRecord temp = recordlist.get(RecordID);
+        PayRecord temp = recordList.get(RecordID);
         PayRecord temp2 = pool.get(temp.getTitle());
         temp2.subtract(temp);
-        recordlist.remove(RecordID);
+        recordList.remove(RecordID);
         refreshData();
     }
 
     public String getInfomation(){
-        if(recordlist.size() == 0){
+        if(recordList.size() == 0){
             return "";
         }
-        // TODO
+        // TODO 打印找零信息的程序
        return "";
 
     }
 
     public String printAdvise(){
-        if(recordlist.size() == 0){
+        if(recordList.size() == 0){
             return "";
         }
 
         Vector vector;
         StringBuilder buffer = new StringBuilder();
-        vector = (Vector)recordlist.clone();
+        vector = (Vector) recordList.clone();
         Vector<PayRecord> newrecordlist = new Vector<PayRecord>();
         int vectorpointer = 0;
         PayRecord pointer = null;
@@ -175,7 +218,7 @@ public class RecordsManager {
         StringBuilder buffer = new StringBuilder();
         buffer.append(String.format("货币名称：%s\n",currentCurrency.getCurrencyName()));
         buffer.append("|付款人\t|已付\t|应付\t|找零\t|负债\t|\n\n");
-        for(PayRecord temp : recordlist){
+        for(PayRecord temp : recordList){
             buffer.append(String.format("|%s\t|%.2f\t|%.2f\t|%.2f\t|%.2f\t|\n",
                     temp.getTitle(),
                     temp.getDue(),
