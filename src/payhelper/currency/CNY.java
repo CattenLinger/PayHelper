@@ -18,13 +18,13 @@ public class CNY implements Currency{
     }
 
     @Override
-    public String getCurrecyName() {
+    public String getCurrencyName() {
         return "CNY";
     }
 
     @Override
     public boolean equals(Currency currency) {
-        if(currency.getCurrecyName().equals(this.getCurrecyName())){
+        if(currency.getCurrencyName().equals(this.getCurrencyName())){
             return true;
         }
         return false;
