@@ -173,7 +173,7 @@ public class RecordsManager {
 
     public String printTable(){
         StringBuilder buffer = new StringBuilder();
-        buffer.append(String.format("货币名称：%s\n",currentCurrency.getCurrecyName()));
+        buffer.append(String.format("货币名称：%s\n",currentCurrency.getCurrencyName()));
         buffer.append("|付款人\t|已付\t|应付\t|找零\t|负债\t|\n\n");
         for(PayRecord temp : recordlist){
             buffer.append(String.format("|%s\t|%.2f\t|%.2f\t|%.2f\t|%.2f\t|\n",
