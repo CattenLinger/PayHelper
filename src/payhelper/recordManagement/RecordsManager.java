@@ -1,4 +1,4 @@
-package payhelper;
+package payhelper.recordManagement;
 
 import payhelper.currency.CNY;
 import payhelper.currency.Currency;
@@ -11,9 +11,11 @@ import static java.lang.System.out;
 /**
  * Created by catten on 15/8/9.
  */
-public class RecordsManager {
+public class RecordsManager {//TODO 找零分配还没完成
     private Map<String,PayRecord> pool;
     private Vector<PayRecord> defaulters;
+    HashMap<PayRecord,int[]> defaultersWithAdvise;
+    private boolean changeWasChecked = false;
     private int[] cashPool;
     private PayRecord sum;
     //账单记录列表
@@ -42,7 +44,7 @@ public class RecordsManager {
         }
         refreshData();
     }
-
+    //刷新数据，负债人列表、零钱池以及总帐目等
     private void refreshData(){
         //清理旧的数据
         defaulters.clear();
@@ -54,22 +56,50 @@ public class RecordsManager {
         for (PayRecord record:pool.values()){
             //负债人
             if(record.isInDebt()){
+                //汇总负债人
                 defaulters.add(record);
-                //TODO 汇总负债人以及计算负债人应该给出的纸币的组合
             }
             //零钱池
             int[] changes = record.getChanges();
             for (int i = 0; i < cashPool.length; i++){
                 cashPool[i] += changes[i];
             }
-            //SUM
+            //总帐目
             sum.merge(record);
         }
+        shortDefaulters();
+        generateAdvise();
+        changeWasChecked = true;
+    }
+    //返还一个总帐目的副本
+    public PayRecord getTotalAccount(){
+        if(!changeWasChecked){
+            refreshData();;
+        }
+        return sum.clone();
+    }
+    //按照负债数额逆序排序负债人列表
+    private void shortDefaulters(){
+        if(defaulters.size() <= 0){
+            return;
+        }
+        Vector<PayRecord> result = new Vector<PayRecord>();
+        PayRecord bigDefaulter = defaulters.get(0);
+        while (defaulters.size() > 0){
+            for (int i = 1; i < defaulters.size(); i++) {
+                if (bigDefaulter.getArrears() < defaulters.get(i).getArrears()){
+                    bigDefaulter = defaulters.get(i);
+                }
+            }
+            result.add(bigDefaulter);
+            defaulters.remove(bigDefaulter);
+        }
+        defaulters = result;
     }
 
     //收款人返还的找零组合
     public int[] getChanges(){
-        //TODO 使用 _distributing(int[] thePool,int amount) 代替之
+        /*
         int[] temp = sum.getChanges();
         int amount = (int)(sum.getChange() * 100);
         int[] result = new int[temp.length];
@@ -77,21 +107,45 @@ public class RecordsManager {
             if(temp[i] == 0 || amount < (int)(currentCurrency.getDenominations()[i] * 100)){
                 continue;
             }
-            result[i] = amount % (int)(currentCurrency.getDenominations()[i] * 100);
+            result[i] = amount / (int)(currentCurrency.getDenominations()[i] * 100);
             amount -= result[i] * (int)(currentCurrency.getDenominations()[i] * 100);
+            //result[i] /= 100;
         }
         return result;
+        */
+        if(!changeWasChecked){
+            refreshData();
+        }
+        return cashPool;
+    }
+
+    private void generateAdvise(){
+        if(defaulters.size() <= 0){
+            defaultersWithAdvise = new HashMap<PayRecord, int[]>();
+        }
+        HashMap<PayRecord,int[]> result = new HashMap<PayRecord, int[]>();
+        refreshData();
+        _distributing(cashPool,sum.getChange());
+        for(PayRecord record : defaulters){
+            result.put(record,_distributing(cashPool,record.getChange()));
+        }
+        defaultersWithAdvise = result;
     }
 
     //从零钱池中分配零钱
-    private int[] _distributing(int[] thePool,int amount){
-        int theamount = amount;
+    private int[] _distributing(int[] thePool,double amount){
+        int theAmount = (int)(amount * 100);
         int[] result = new int[thePool.length];
         for (int i = 0; i < thePool.length; i++) {
             if(thePool[i] == 0 || amount <(int)(currentCurrency.getDenominations()[i] * 100)){
                 continue;
             }
-            //TODO 从零钱池中分配零钱的算法
+            int count = theAmount / (int)(currentCurrency.getDenominations()[i] * 100);
+            if(count != 0){
+                result[i] = count;
+                thePool[i] -= count;
+                theAmount -= count * (int)(currentCurrency.getDenominations()[i] * 100);
+            }
         }
         return result;
     }
@@ -107,7 +161,7 @@ public class RecordsManager {
         if(temp != null){
             pool.get(record.getTitle()).merge(temp);
         }
-        refreshData();
+        changeWasChecked = false;
     }
 
     public Vector<PayRecord> getRecordList(){
@@ -119,7 +173,7 @@ public class RecordsManager {
         PayRecord temp2 = pool.get(temp.getTitle());
         temp2.subtract(temp);
         recordList.remove(RecordID);
-        refreshData();
+        changeWasChecked = false;
     }
 
     public String getInfomation(){

@@ -2,6 +2,8 @@ package payhelper;
 
 import payhelper.currency.CNY;
 import payhelper.database.RandomName;
+import payhelper.recordManagement.PayRecord;
+import payhelper.recordManagement.RecordsManager;
 
 import javax.swing.*;
 import javax.swing.filechooser.FileNameExtensionFilter;
@@ -175,6 +177,36 @@ public class MainWindow extends JFrame implements ActionListener {
         }
     }
 
+    private void outputResults(){
+        PayRecord totalAccount = recordsManager.getTotalAccount();
+        StringBuilder temp1 = new StringBuilder();
+        temp1.append(String.format("当前货币：%s\n",totalAccount.getCurrency().getCurrencyName()));
+        temp1.append(String.format(
+                        "总金额：%.2f\n已付：%.2f\n",
+                        totalAccount.getDue(),
+                        totalAccount.getExpenses())
+        );
+        temp1.append(totalAccount.getChange() >= totalAccount.getArrears() ?
+                        String.format("找零：%.2f\n", totalAccount.getChange()) :
+                        String.format("欠款：%.2f\n", totalAccount.getArrears())
+        );
+        if(totalAccount.getChange() > 0){
+            temp1.append("建议的找零组合：\n");
+            int[] changes = recordsManager.getChanges();
+            for (int i = 0; i < changes.length; i++){
+                if(changes[i] != 0){
+                    temp1.append(String.format(
+                                    "%s\t:\t%d\n",
+                                    totalAccount.getCurrency().getDenominationNames()[i],
+                                    changes[i])
+                    );
+                }
+            }
+        }
+        //TODO 更多的输出内容
+        results.setText(temp1.toString());
+    }
+
     @Override
     public void actionPerformed(ActionEvent e) {
         if(e.getSource() == btn_submit){
@@ -209,14 +241,14 @@ public class MainWindow extends JFrame implements ActionListener {
                 );
                 clear_textboxs();
                 t_name.requestFocus();
-                results.setText(recordsManager.printAdvise());
+                outputResults();
             }
         }else if(e.getSource() == btn_delete){
             //删除表格里选中的项目
             while(tabel.getSelectedRows().length != 0){
                 recordsManager.removeRecord(tabel.getSelectedRow());
                 defaultTableModel.removeRow(tabel.getSelectedRow());
-                results.setText(recordsManager.printAdvise());
+                outputResults();
             }
         }else if(e.getSource() == btn_random){
             //随机产生名字并填入付款人字段里
@@ -236,9 +268,19 @@ public class MainWindow extends JFrame implements ActionListener {
                     fileWriter.write(recordsManager.printTable());
                     fileWriter.write(recordsManager.printAdvise());
                     fileWriter.close();
-                    JOptionPane.showMessageDialog(this,"保存成功。路径：\n" + savefile.getPath(),"保存",JOptionPane.INFORMATION_MESSAGE);
+                    JOptionPane.showMessageDialog(
+                            this,
+                            "保存成功。路径：\n" + savefile.getPath(),
+                            "保存",
+                            JOptionPane.INFORMATION_MESSAGE
+                    );
                 }catch (IOException error){
-                    JOptionPane.showMessageDialog(this,"无法保存文件，请检查所选位置是否妥当、文件名是否符合规范以及您对所选路径的访问权限。","保存错误",JOptionPane.ERROR_MESSAGE);
+                    JOptionPane.showMessageDialog(
+                            this,
+                            "无法保存文件，请检查所选位置是否妥当、文件名是否符合规范以及您对所选路径的访问权限。",
+                            "保存错误",
+                            JOptionPane.ERROR_MESSAGE
+                    );
                     error.printStackTrace();
                 }
             }

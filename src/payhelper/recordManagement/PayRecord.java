@@ -1,13 +1,6 @@
-package payhelper;
+package payhelper.recordManagement;
 
-import payhelper.currency.CNY;
 import payhelper.currency.Currency;
-
-import java.util.Scanner;
-import java.util.Vector;
-
-import static java.lang.System.in;
-import static java.lang.System.out;
 
 /**
  * Created by catten on 15/4/21.
@@ -107,5 +100,9 @@ public class PayRecord{
 
     public String toString(){
         return String.format("Title:%s\nPay:%.2f\nPayed:%.2f", title, due, expenses);
+    }
+
+    public PayRecord clone(){
+        return new PayRecord(title,due,expenses,currency);
     }
 }
