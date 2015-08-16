@@ -6,8 +6,10 @@ import payhelper.recordManagement.PayRecord;
 import payhelper.recordManagement.RecordsManager;
 
 import javax.swing.*;
+import javax.swing.event.TableModelListener;
 import javax.swing.filechooser.FileNameExtensionFilter;
 import javax.swing.table.DefaultTableModel;
+import javax.swing.table.TableModel;
 import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
@@ -180,30 +182,39 @@ public class MainWindow extends JFrame implements ActionListener {
     private void outputResults(){
         PayRecord totalAccount = recordsManager.getTotalAccount();
         StringBuilder temp1 = new StringBuilder();
-        temp1.append(String.format("当前货币：%s\n",totalAccount.getCurrency().getCurrencyName()));
+        temp1.append(String.format("当前货币：%s\n",totalAccount.getCurrency().getName()));
         temp1.append(String.format(
                         "总金额：%.2f\n已付：%.2f\n",
                         totalAccount.getDue(),
                         totalAccount.getExpenses())
         );
-        temp1.append(totalAccount.getChange() >= totalAccount.getArrears() ?
-                        String.format("找零：%.2f\n", totalAccount.getChange()) :
-                        String.format("欠款：%.2f\n", totalAccount.getArrears())
-        );
-        if(totalAccount.getChange() > 0){
-            temp1.append("建议的找零组合：\n");
-            int[] changes = recordsManager.getChanges();
+        if(totalAccount.isInDebt()){
+            temp1.append(String.format("欠款：%.2f\n",Math.abs(totalAccount.getBalance())));
+        }else{
+            temp1.append(String.format("找零：%.2f\n",totalAccount.getBalance()));
+            temp1.append("收款人找零：\n");
+            int[] changes = totalAccount.getCombination();
             for (int i = 0; i < changes.length; i++){
                 if(changes[i] != 0){
-                    temp1.append(String.format(
-                                    "%s\t:\t%d\n",
-                                    totalAccount.getCurrency().getDenominationNames()[i],
-                                    changes[i])
+                    temp1.append(
+                            String.format("%s\t:\t%d\n",totalAccount.getCurrency().getDenominationNames()[i],changes[i])
                     );
                 }
             }
         }
         //TODO 更多的输出内容
+        if(recordsManager.getDefaulters().size() > 0){
+            temp1.append("负债人:\n");
+            for (PayRecord payRecord : recordsManager.getDefaulters().keySet()){
+                temp1.append(payRecord.getTitle() + "\n\t");
+                int[] changes = recordsManager.getDefaulters().get(payRecord);
+                for(int i = 0; i < changes.length; i++){
+                    if(changes[i] != 0){
+                        temp1.append(String.format("%s\t:\t%d\n",payRecord.getCurrency().getDenominationNames()[i],changes[i]));
+                    }
+                }
+            }
+        }
         results.setText(temp1.toString());
     }
 
@@ -230,13 +241,14 @@ public class MainWindow extends JFrame implements ActionListener {
                         Double.parseDouble(t_due.getText()),
                         Double.parseDouble(t_expenses.getText())
                 );
+                PayRecord payRecord = recordsManager.getRecordList().lastElement();
                 defaultTableModel.addRow(
                         new String[]{
-                                recordsManager.getRecordList().lastElement().getTitle(),
-                                ((Double) recordsManager.getRecordList().lastElement().getExpenses()).toString(),
-                                ((Double) recordsManager.getRecordList().lastElement().getDue()).toString(),
-                                ((Double) recordsManager.getRecordList().lastElement().getChange()).toString(),
-                                ((Double) recordsManager.getRecordList().lastElement().getArrears()).toString()
+                                payRecord.getTitle(),
+                                ((Double) payRecord.getExpenses()).toString(),
+                                ((Double) payRecord.getDue()).toString(),
+                                ((Double) payRecord.getChange()).toString(),
+                                ((Double) payRecord.getArrears()).toString()
                         }
                 );
                 clear_textboxs();
@@ -254,6 +266,7 @@ public class MainWindow extends JFrame implements ActionListener {
             //随机产生名字并填入付款人字段里
             t_name.setText(randomNames.nextName());
         }else if(e.getSource() == btn_save){
+            //保存列表到文本文件
             JFileChooser jFileChooser = new JFileChooser();
             jFileChooser.setMultiSelectionEnabled(false);
             jFileChooser.setDialogType(JFileChooser.SAVE_DIALOG);
@@ -285,7 +298,7 @@ public class MainWindow extends JFrame implements ActionListener {
                 }
             }
         }
-
+        //
         if(recordsManager.getRecordList().size() == 0){
             btn_save.setEnabled(false);
         }else {

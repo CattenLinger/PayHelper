@@ -6,6 +6,6 @@ package payhelper.currency;
 public interface Currency {
     String[] getDenominationNames();
     double[] getDenominations();
-    String getCurrencyName();
+    String getName();
     boolean equals(Currency currency);
 }

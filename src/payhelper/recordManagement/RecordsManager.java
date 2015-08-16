@@ -11,13 +11,14 @@ import static java.lang.System.out;
 /**
  * Created by catten on 15/8/9.
  */
-public class RecordsManager {//TODO 找零分配还没完成
+public class RecordsManager {
+//TODO 找零分配还没完成
     private Map<String,PayRecord> pool;
     private Vector<PayRecord> defaulters;
     HashMap<PayRecord,int[]> defaultersWithAdvise;
-    private boolean changeWasChecked = false;
-    private int[] cashPool;
-    private PayRecord sum;
+    private boolean changingWasChecked = false; //列表被更改之后就会立起这个flag
+    private int[] cashPool; //零钱池
+    private PayRecord sum; //总帐目
     //账单记录列表
     private Vector<PayRecord> recordList;
 
@@ -32,8 +33,11 @@ public class RecordsManager {//TODO 找零分配还没完成
         pool = new HashMap<String, PayRecord>();
         cashPool = new int[currentCurrency.getDenominations().length];
         //整理数据
-        copyToMap();
+        if(recordList.size() != 0){
+            refreshData();
+        }
     }//*/
+
     //把账单数据复制到Map中，相同名称的帐目会被合并。
     private void copyToMap(){
         for(PayRecord record: recordList){
@@ -42,8 +46,8 @@ public class RecordsManager {//TODO 找零分配还没完成
                 pool.get(record.getTitle()).merge(temp);
             }
         }
-        refreshData();
     }
+
     //刷新数据，负债人列表、零钱池以及总帐目等
     private void refreshData(){
         //清理旧的数据
@@ -52,6 +56,9 @@ public class RecordsManager {//TODO 找零分配还没完成
             cashPool[i] = 0;
         }
         sum = new PayRecord("SUM",0,0,currentCurrency);
+        pool.clear();
+        copyToMap();
+
         //计算新的数据
         for (PayRecord record:pool.values()){
             //负债人
@@ -64,29 +71,34 @@ public class RecordsManager {//TODO 找零分配还没完成
             for (int i = 0; i < cashPool.length; i++){
                 cashPool[i] += changes[i];
             }
+        }
+        for(PayRecord payRecord : recordList){
             //总帐目
-            sum.merge(record);
+            if (!sum.merge(payRecord)) {
+                System.out.println("Error in merging record to SUM");
+            }
         }
         shortDefaulters();
         generateAdvise();
-        changeWasChecked = true;
+        changingWasChecked = true;
     }
     //返还一个总帐目的副本
     public PayRecord getTotalAccount(){
-        if(!changeWasChecked){
-            refreshData();;
+        if(!changingWasChecked){
+            refreshData();
         }
         return sum.clone();
     }
+
     //按照负债数额逆序排序负债人列表
     private void shortDefaulters(){
         if(defaulters.size() <= 0){
             return;
         }
         Vector<PayRecord> result = new Vector<PayRecord>();
-        PayRecord bigDefaulter = defaulters.get(0);
         while (defaulters.size() > 0){
-            for (int i = 1; i < defaulters.size(); i++) {
+            PayRecord bigDefaulter = defaulters.get(0);
+            for (int i = 0; i < defaulters.size(); i++) {
                 if (bigDefaulter.getArrears() < defaulters.get(i).getArrears()){
                     bigDefaulter = defaulters.get(i);
                 }
@@ -97,23 +109,16 @@ public class RecordsManager {//TODO 找零分配还没完成
         defaulters = result;
     }
 
+    public HashMap<PayRecord,int[]> getDefaulters(){
+        if(!changingWasChecked){
+            refreshData();
+        }
+        return defaultersWithAdvise;
+    }
+
     //收款人返还的找零组合
     public int[] getChanges(){
-        /*
-        int[] temp = sum.getChanges();
-        int amount = (int)(sum.getChange() * 100);
-        int[] result = new int[temp.length];
-        for (int i = 0; i < temp.length; i++) {
-            if(temp[i] == 0 || amount < (int)(currentCurrency.getDenominations()[i] * 100)){
-                continue;
-            }
-            result[i] = amount / (int)(currentCurrency.getDenominations()[i] * 100);
-            amount -= result[i] * (int)(currentCurrency.getDenominations()[i] * 100);
-            //result[i] /= 100;
-        }
-        return result;
-        */
-        if(!changeWasChecked){
+        if(!changingWasChecked){
             refreshData();
         }
         return cashPool;
@@ -124,7 +129,6 @@ public class RecordsManager {//TODO 找零分配还没完成
             defaultersWithAdvise = new HashMap<PayRecord, int[]>();
         }
         HashMap<PayRecord,int[]> result = new HashMap<PayRecord, int[]>();
-        refreshData();
         _distributing(cashPool,sum.getChange());
         for(PayRecord record : defaulters){
             result.put(record,_distributing(cashPool,record.getChange()));
@@ -155,13 +159,10 @@ public class RecordsManager {//TODO 找零分配还没完成
     }
 
     public void addRecord(String title,double Due,double Expenses){
-        PayRecord record = new PayRecord(title,Due,Expenses,currentCurrency);
-        recordList.add(record);
-        PayRecord temp = pool.put(record.getTitle(),record);
-        if(temp != null){
-            pool.get(record.getTitle()).merge(temp);
-        }
-        changeWasChecked = false;
+        //在受托管的列表上添加记录
+        recordList.add(new PayRecord(title,Due,Expenses,currentCurrency));
+        //列表已改变，所以标记为未刷新
+        changingWasChecked = false;
     }
 
     public Vector<PayRecord> getRecordList(){
@@ -169,22 +170,11 @@ public class RecordsManager {//TODO 找零分配还没完成
     }
 
     public void removeRecord(int RecordID){
-        PayRecord temp = recordList.get(RecordID);
-        PayRecord temp2 = pool.get(temp.getTitle());
-        temp2.subtract(temp);
         recordList.remove(RecordID);
-        changeWasChecked = false;
+        changingWasChecked = false;
     }
 
-    public String getInfomation(){
-        if(recordList.size() == 0){
-            return "";
-        }
-        // TODO 打印找零信息的程序
-       return "";
-
-    }
-
+    @Deprecated
     public String printAdvise(){
         if(recordList.size() == 0){
             return "";
@@ -270,7 +260,7 @@ public class RecordsManager {//TODO 找零分配还没完成
 
     public String printTable(){
         StringBuilder buffer = new StringBuilder();
-        buffer.append(String.format("货币名称：%s\n",currentCurrency.getCurrencyName()));
+        buffer.append(String.format("货币名称：%s\n",currentCurrency.getName()));
         buffer.append("|付款人\t|已付\t|应付\t|找零\t|负债\t|\n\n");
         for(PayRecord temp : recordList){
             buffer.append(String.format("|%s\t|%.2f\t|%.2f\t|%.2f\t|%.2f\t|\n",
@@ -288,24 +278,92 @@ public class RecordsManager {//TODO 找零分配还没完成
     public static void main(String[] args){
         RecordsManager recordsManager = new RecordsManager(new Vector<PayRecord>(),new CNY());
 
+        Random random = new Random(new Date().getTime());
         String title;
+
         double pay;
         double payed;
-        Scanner scanner = new Scanner(in);
-        int j = 256;
-        out.printf("Please input records follow tips.\nFill\"quit\" finish inputting.\n");
-        while(j-- != 0){
-            out.print("Please input name: ");
-            title = scanner.next();
-            if(title.equals("quit")) break;
-            out.print("Amount:");
-            pay = scanner.nextDouble();
-            out.print("Payed:");
-            payed = scanner.nextDouble();
+        for (int i = 0; i < 10; i++) {
+            pay = (int)(random.nextFloat() * 100);
+            payed = (int)(random.nextFloat() * 100);
+            title = String.format("Acc. %d",i);
             recordsManager.addRecord(title,pay,payed);
         }
 
         out.print(recordsManager.printTable());
-        out.print(recordsManager.printAdvise());
+        out.printf("Total Paied:%.2f\n", recordsManager.getTotalAccount().getExpenses());
+        out.printf("Total Due  :%.2f\n",recordsManager.getTotalAccount().getDue());
+        if(recordsManager.getTotalAccount().isInDebt()){
+            out.printf("Total Arrear:%.2f\n",Math.abs(recordsManager.getTotalAccount().getBalance()));
+        }else {
+            out.printf("Return Change:%.2f\n",recordsManager.getTotalAccount().getBalance());
+        }
+        //out.print(recordsManager.printAdvise());
+        int[] cashPool = new int[recordsManager.getCurrentCurrency().getDenominations().length];
+        int[] ArrearPool = new int[cashPool.length];
+        StringBuilder buffer = new StringBuilder();
+        Vector<PayRecord> vector = recordsManager.getRecordList();
+        for(PayRecord payRecord : vector){
+            if(payRecord.isInDebt()){
+                for (int i = 0; i < ArrearPool.length; i++) {
+                    ArrearPool[i] += payRecord.getCombination()[i];
+                }
+                //buffer.append(payRecord.getTitle() + "\t");
+            }else{
+                for (int i = 0; i < cashPool.length; i++) {
+                    cashPool[i] += payRecord.getCombination()[i];
+                }
+            }
+        }
+        out.print("Debt List:\n");
+        Map<PayRecord,int[]> temp = recordsManager.getDefaulters();
+        for (PayRecord record : temp.keySet()){
+            buffer.append(String.format("%s\n",record.getTitle()));
+            int[] tempchanges = temp.get(record);
+            for (int i = 0; i < record.getCurrency().getDenominations().length; i++) {
+                if(tempchanges[i] != 0){
+                    buffer.append(String.format(
+                                    "%s\t:\t%d\n",
+                                    record.getCurrency().getDenominationNames()[i],
+                                    tempchanges[i])
+                    );
+                }
+            }
+        }
+        out.print(buffer.toString());
+        System.out.print("cashPool:\n");
+        for (int i = 0; i < cashPool.length; i++) {
+            if(cashPool[i] != 0){
+                System.out.printf(
+                        "%s\t:\t%d\n",
+                        recordsManager.getCurrentCurrency().getDenominationNames()[i],
+                        cashPool[i]
+                );
+            }
+        }
+        if(recordsManager.getTotalAccount().getBalance() > 0){
+            System.out.printf("Receiver Return:\n");
+            for (int i = 0; i < cashPool.length; i++) {
+                if(recordsManager.getTotalAccount().getCombination()[i] != 0){
+                    System.out.printf(
+                            "%s\t:\t%d\n",
+                            recordsManager.getCurrentCurrency().getDenominationNames()[i],
+                            recordsManager.getTotalAccount().getCombination()[i]
+                    );
+                }
+            }
+        }
+        if(recordsManager.getTotalAccount().getBalance() < 0){
+            System.out.printf("ArrearPool:\n");
+            for(int i = 0; i < ArrearPool.length; i++){
+                if(ArrearPool[i] != 0){
+                    System.out.printf(
+                            "%s\t:\t%d\n",
+                            recordsManager.getCurrentCurrency().getDenominationNames()[i],
+                            ArrearPool[i]
+                    );
+                }
+            }
+        }
     }
 }
