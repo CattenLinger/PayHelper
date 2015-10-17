@@ -31,7 +31,7 @@ public class MainWindow extends JFrame implements ActionListener {
     //用来生成随机数
     static Random random = new Random(new Date().getTime());
     //表格的表头
-    String[] columeName = new String[]{"付款人","已付","应付","找零","负债"};
+    String[] columeName = new String[]{"付款人","已付","应付","余额"};
     //随机名字列表，以后可能会再增加一些_(:з」∠)_
     RandomName randomNames = new RandomName();
     /*
@@ -247,8 +247,7 @@ public class MainWindow extends JFrame implements ActionListener {
                                 payRecord.getTitle(),
                                 ((Double) payRecord.getExpenses()).toString(),
                                 ((Double) payRecord.getDue()).toString(),
-                                ((Double) payRecord.getChange()).toString(),
-                                ((Double) payRecord.getArrears()).toString()
+                                ((Double) payRecord.getBalance()).toString()
                         }
                 );
                 clear_textboxs();
@@ -272,18 +271,18 @@ public class MainWindow extends JFrame implements ActionListener {
             jFileChooser.setDialogType(JFileChooser.SAVE_DIALOG);
             jFileChooser.setDialogTitle("保存记录");
             jFileChooser.setFileFilter(new FileNameExtensionFilter("文本文档","*.txt"));
-            File savefile;
+            File targetFile;
             jFileChooser.setVisible(true);
             if(jFileChooser.showSaveDialog(this) == JFileChooser.APPROVE_OPTION){
                 try{
-                    savefile = jFileChooser.getSelectedFile();
-                    FileWriter fileWriter = new FileWriter(savefile);
+                    targetFile = jFileChooser.getSelectedFile();
+                    FileWriter fileWriter = new FileWriter(targetFile);
                     fileWriter.write(recordsManager.printTable());
-                    fileWriter.write(recordsManager.printAdvise());
+                    fileWriter.write(results.getText());
                     fileWriter.close();
                     JOptionPane.showMessageDialog(
                             this,
-                            "保存成功。路径：\n" + savefile.getPath(),
+                            "保存成功。路径：\n" + targetFile.getPath(),
                             "保存",
                             JOptionPane.INFORMATION_MESSAGE
                     );

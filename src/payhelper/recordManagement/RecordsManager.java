@@ -12,7 +12,6 @@ import static java.lang.System.out;
  * Created by catten on 15/8/9.
  */
 public class RecordsManager {
-//TODO 找零分配还没完成
     private Map<String,PayRecord> pool;
     private Vector<PayRecord> defaulters;
     HashMap<PayRecord,int[]> defaultersWithAdvise;
@@ -24,6 +23,7 @@ public class RecordsManager {
 
     private Currency currentCurrency;
 
+    //纪录管理器，用于管理一个Vector里的纪录。仅仅会管理制定货币的纪录（TODO）
     public RecordsManager(Vector<PayRecord> list,Currency currency){
         recordList = list;
         currentCurrency = currency;
@@ -67,9 +67,11 @@ public class RecordsManager {
                 defaulters.add(record);
             }
             //零钱池
-            int[] changes = record.getChanges();
-            for (int i = 0; i < cashPool.length; i++){
-                cashPool[i] += changes[i];
+            if(!sum.isInDebt()){
+                int[] changes = record.getCombination();
+                for (int i = 0; i < cashPool.length; i++){
+                    cashPool[i] += changes[i];
+                }
             }
         }
         for(PayRecord payRecord : recordList){
@@ -99,7 +101,7 @@ public class RecordsManager {
         while (defaulters.size() > 0){
             PayRecord bigDefaulter = defaulters.get(0);
             for (int i = 0; i < defaulters.size(); i++) {
-                if (bigDefaulter.getArrears() < defaulters.get(i).getArrears()){
+                if (bigDefaulter.getBalance() < defaulters.get(i).getBalance()){
                     bigDefaulter = defaulters.get(i);
                 }
             }
@@ -129,9 +131,9 @@ public class RecordsManager {
             defaultersWithAdvise = new HashMap<PayRecord, int[]>();
         }
         HashMap<PayRecord,int[]> result = new HashMap<PayRecord, int[]>();
-        _distributing(cashPool,sum.getChange());
+        _distributing(cashPool,sum.getBalance());
         for(PayRecord record : defaulters){
-            result.put(record,_distributing(cashPool,record.getChange()));
+            result.put(record,_distributing(cashPool,record.getBalance()));
         }
         defaultersWithAdvise = result;
     }
@@ -236,12 +238,12 @@ public class RecordsManager {
         boolean haveChanges = false;
         for(PayRecord temp : newrecordlist){
             for(int i = 0; i < 9;i++){
-                temp_adv[i] += temp.getChanges()[i];
-                if(temp.getChanges()[i] != 0){
+                temp_adv[i] += temp.getCombination()[i];
+                if(temp.getCombination()[i] != 0){
                     haveChanges |= true;
                 }
             }
-            canDiv &= temp.isDividable();
+            canDiv &= temp.isLeakedCombination();
         }
         if((v_changes * 100 % 10) != 0 || !canDiv){
             buffer.append("或许金额包含“分”所以不能完全找零。\n但依旧输出建议找零组合。\n");
@@ -258,17 +260,39 @@ public class RecordsManager {
         return buffer.toString();
     }
 
+    void _fillSpaces(char[] array){
+        if(array.length == 0){
+            return;
+        }
+        for (int i = 0; i < array.length; i++){
+            array[i] = ' ';
+        }
+    }
+
+    //输出一个比较直观的帐目List
     public String printTable(){
         StringBuilder buffer = new StringBuilder();
         buffer.append(String.format("货币名称：%s\n",currentCurrency.getName()));
-        buffer.append("|付款人\t|已付\t|应付\t|找零\t|负债\t|\n\n");
+        int maxTitleLength = 0;
+        for (PayRecord temp : recordList){
+            if(temp.getTitle().length() > maxTitleLength){
+                maxTitleLength = temp.getTitle().length();
+            }
+        }
+
+        char[] spaces = new char[maxTitleLength - "title".length()];
+        _fillSpaces(spaces);
+        buffer.append(String.format("|Title%s\t|已付\t|应付\t|找零\t|负债\t|\n",new String(spaces)));
         for(PayRecord temp : recordList){
-            buffer.append(String.format("|%s\t|%.2f\t|%.2f\t|%.2f\t|%.2f\t|\n",
+            spaces = new char[maxTitleLength - temp.getTitle().length()];
+            _fillSpaces(spaces);
+            buffer.append(String.format("|%s%s|%.2f\t|%.2f\t|%.2f\t|%.2f\t|\n",
                     temp.getTitle(),
+                    new String(spaces),
                     temp.getDue(),
                     temp.getExpenses(),
-                    temp.getChange(),
-                    temp.getArrears()
+                    temp.getBalance(),
+                    temp.getBalance()
             ));
         }
         buffer.append("\n\n");
@@ -283,7 +307,7 @@ public class RecordsManager {
 
         double pay;
         double payed;
-        for (int i = 0; i < 10; i++) {
+        for (int i = 0; i < 5; i++) { //随机产生数据
             pay = (int)(random.nextFloat() * 100);
             payed = (int)(random.nextFloat() * 100);
             title = String.format("Acc. %d",i);

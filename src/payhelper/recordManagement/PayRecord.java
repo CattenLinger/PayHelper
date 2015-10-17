@@ -9,31 +9,17 @@ import java.util.Scanner;
  * Created by catten on 15/4/21.
  */
 
-public class PayRecord{
+public class PayRecord implements Cloneable{
 
     private String title;
     private double due;
     private double expenses;
     private Currency currency;
 
-    private int[] changes;// = new int[9];//50 20 10 5 2 1 0.5 0.2 0.1
-    private boolean dividable;
+    //private int[] changes;
+    //private boolean dividable;
     private int[] combination;
     private boolean leakedCombination;
-    //private static String[] value_of_changes = new String[]{"50","20","10","5","2","1","0.5","0.2","0.1"};
-
-    @Deprecated // TODO 清理过时方法
-    private boolean _countChanges(){
-        //double和float误差烦人，所以这里的计算先全部乘上10
-        int temp = (int)(getChange() * 10);
-        double[] denominations = currency.getDenominations();
-        for(int i = 0; i < denominations.length ; i++){
-            changes[i] = (int)(temp / (denominations[i] * 10));
-            temp -= changes[i] * (denominations[i] * 10);
-        }
-        //dividable = temp == 0;
-        return temp == 0;
-    }
 
     private boolean generateCombination(){
         int temp = (int)(Math.abs(getBalance()) * 10);
@@ -45,18 +31,13 @@ public class PayRecord{
         //dividable = temp == 0;
         return temp == 0;
     }
-    //能否完全找零
+    /*/能否完全找零
     public boolean isDividable(){
         return dividable;
-    }
+    }//*/
     //获取当前记录的货币的所有面值
     public String[] getDenominations() {
         return currency.getDenominationNames();
-    }
-    //获取针对这个记录的找零方案
-    @Deprecated // TODO 清理过时方法
-    public int[] getChanges() {
-        return changes;
     }
     //获取应付
     public double getDue() {
@@ -76,22 +57,10 @@ public class PayRecord{
         due = Double.parseDouble(String.format("%.2f",Due));
         this.expenses = Double.parseDouble(String.format("%.2f", expenses));
         this.currency = currency;
-        changes = new int[currency.getDenominations().length];
-        dividable = _countChanges();
+        //changes = new int[currency.getDenominations().length];
+        //dividable = _countChanges();
         combination = new int[currency.getDenominations().length];
         leakedCombination = generateCombination();
-    }
-
-    //获取找零
-    @Deprecated // TODO 清理过时方法
-    public double getChange(){
-
-        return expenses - due > 0?Double.parseDouble(String.format("%.2f", expenses - due)):0;
-    }
-    //获取负债
-    @Deprecated // TODO 清理过时方法
-    public double getArrears(){
-        return due - expenses > 0?Double.parseDouble(String.format("%.2f", due - expenses)):0;
     }
 
     //获取余额
@@ -122,7 +91,7 @@ public class PayRecord{
         }
         due += record.getDue();
         expenses += record.getExpenses();
-        dividable = _countChanges();
+        //dividable = _countChanges();
         leakedCombination = generateCombination();
         return true;
     }
@@ -133,7 +102,7 @@ public class PayRecord{
         }
         due -= record.getDue();
         expenses -= record.getExpenses();
-        dividable = _countChanges();
+        //dividable = _countChanges();
         leakedCombination = generateCombination();
         return true;
     }
